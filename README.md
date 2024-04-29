@@ -1,2 +1,3 @@
-# sim-circuit
-Utilities for simulating arithmetic circuits
+# Sim Circuit
+
+A Rust library that provides utilities for simulating logic gate circuits.
