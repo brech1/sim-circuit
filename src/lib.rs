@@ -1,6 +1,5 @@
 //! # Sim Circuit
 //!
-//! Sim Circuit provides utilities for simulating arithmetic circuits.
+//! Utilities for simulating logic gate circuits.
 
 pub mod circuit;
-pub mod execution;
