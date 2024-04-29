@@ -125,13 +125,23 @@ impl Circuit {
     }
 
     /// Add a node to the circuit.
-    pub fn add_node(&mut self, id: u32, node: Node) {
+    pub fn add_node(&mut self, id: u32, node: Node) -> Result<(), CircuitError> {
+        if self.nodes.contains_key(&id) {
+            return Err(CircuitError::NodeAlreadyExists(id));
+        }
+
         self.nodes.insert(id, node);
+        Ok(())
     }
 
     /// Add a gate to the circuit.
-    pub fn add_gate(&mut self, gate: Gate) {
+    pub fn add_gate(&mut self, gate: Gate) -> Result<(), CircuitError> {
+        self.ensure_node_exists(gate.left_input)?;
+        self.ensure_node_exists(gate.right_input)?;
+        self.ensure_node_exists(gate.output)?;
+
         self.gates.push(gate);
+        Ok(())
     }
 
     /// Get the input and output nodes from the circuit.
@@ -161,73 +171,57 @@ impl Circuit {
         (inputs, outputs)
     }
 
-    /// Execute the circuit with the given input values and return the output values.
-    pub fn execute(&mut self, inputs: &[u32]) -> Result<Vec<u32>, CircuitError> {
+    // Execute the circuit with the given input values and return the output values without modifying the circuit.
+    pub fn execute(&self, inputs: &[u32]) -> Result<Vec<u32>, CircuitError> {
         let (input_nodes, output_nodes) = self.get_circuit_io();
 
-        // Check if the input size matches the circuit input size
+        // Validate input size
         if inputs.len() != input_nodes.len() {
             return Err(CircuitError::InvalidInputSize);
         }
 
-        // Assign input values to input nodes
-        for (node_id, &value) in input_nodes.iter().zip(inputs) {
-            self.nodes
-                .get_mut(node_id)
-                .ok_or(CircuitError::NodeNotFound(*node_id))?
-                .set_value(value);
+        let mut local_node_values = HashMap::new();
+        for (&node_id, &value) in input_nodes.iter().zip(inputs) {
+            local_node_values.insert(node_id, value);
         }
 
         // Execute gates
         for gate in &self.gates {
-            let left_input = self
-                .nodes
+            let left_input = *local_node_values
                 .get(&gate.left_input)
-                .and_then(|node| node.get_value())
-                .ok_or_else(|| {
-                    if self.nodes.contains_key(&gate.left_input) {
-                        CircuitError::NodeValueNotAssigned(gate.left_input)
-                    } else {
-                        CircuitError::NodeNotFound(gate.left_input)
-                    }
-                })?;
-
-            let right_input = self
-                .nodes
+                .ok_or_else(|| CircuitError::NodeValueNotAssigned(gate.left_input))?;
+            let right_input = *local_node_values
                 .get(&gate.right_input)
-                .and_then(|node| node.get_value())
-                .ok_or_else(|| {
-                    if self.nodes.contains_key(&gate.right_input) {
-                        CircuitError::NodeValueNotAssigned(gate.right_input)
-                    } else {
-                        CircuitError::NodeNotFound(gate.right_input)
-                    }
-                })?;
+                .ok_or_else(|| CircuitError::NodeValueNotAssigned(gate.right_input))?;
 
             let output = gate.execute(left_input, right_input);
 
-            let output_node = self
-                .nodes
-                .get_mut(&gate.output)
-                .ok_or(CircuitError::NodeNotFound(gate.output))?;
-
-            if output_node.get_value().is_some() {
+            if local_node_values.contains_key(&gate.output) {
                 return Err(CircuitError::OutputNodePreAssigned(gate.output));
             }
 
-            output_node.set_value(output);
+            local_node_values.insert(gate.output, output);
         }
 
-        // Collect output values
+        // Collect output values from temporary storage
         output_nodes
             .iter()
             .map(|node_id| {
-                self.nodes
+                local_node_values
                     .get(node_id)
-                    .and_then(|node| node.get_value())
+                    .copied()
                     .ok_or(CircuitError::NodeValueNotFound(*node_id))
             })
             .collect()
+    }
+
+    /// Helper to check node existence.
+    fn ensure_node_exists(&self, node_id: u32) -> Result<(), CircuitError> {
+        if self.nodes.contains_key(&node_id) {
+            Ok(())
+        } else {
+            Err(CircuitError::NodeNotFound(node_id))
+        }
     }
 }
 
@@ -235,12 +229,14 @@ impl Circuit {
 pub enum CircuitError {
     #[error("Invalid input size")]
     InvalidInputSize,
+    #[error("Node {0} already exists")]
+    NodeAlreadyExists(u32),
     #[error("Node {0} not found")]
     NodeNotFound(u32),
-    #[error("Node value for node {0} not found")]
-    NodeValueNotFound(u32),
     #[error("Node {0} has no value assigned")]
     NodeValueNotAssigned(u32),
+    #[error("Node value for node {0} not found")]
+    NodeValueNotFound(u32),
     #[error("Output node {0} already has a value assigned")]
     OutputNodePreAssigned(u32),
 }
@@ -252,6 +248,7 @@ mod tests {
     #[test]
     fn test_create_node() {
         let node = Node::new();
+
         assert!(node.get_value().is_none());
     }
 
@@ -259,12 +256,14 @@ mod tests {
     fn test_set_node_value() {
         let mut node = Node::new();
         node.set_value(10);
+
         assert_eq!(node.get_value(), Some(10));
     }
 
     #[test]
     fn test_create_gate() {
         let gate = Gate::new(Operation::Add, 1, 2, 3);
+
         assert!(matches!(gate.operation, Operation::Add));
         assert_eq!(gate.left_input, 1);
         assert_eq!(gate.right_input, 2);
@@ -274,34 +273,67 @@ mod tests {
     #[test]
     fn test_create_circuit() {
         let circuit = Circuit::new();
+
         assert!(circuit.nodes.is_empty());
         assert!(circuit.gates.is_empty());
     }
 
     #[test]
-    fn test_add_node_to_circuit() {
+    fn test_add_node() {
         let mut circuit = Circuit::new();
         let node = Node::new();
-        circuit.add_node(1, node);
+
+        circuit.add_node(1, node).unwrap();
+
         assert!(circuit.nodes.contains_key(&1));
     }
 
     #[test]
-    fn test_add_gate_to_circuit() {
+    fn test_add_node_error() {
         let mut circuit = Circuit::new();
-        let gate = Gate::new(Operation::Multiply, 1, 2, 3);
-        circuit.add_gate(gate);
+        let node = Node::new();
+
+        assert!(circuit.add_node(1, node).is_ok());
+        assert!(matches!(
+            circuit.add_node(1, Node::new()),
+            Err(CircuitError::NodeAlreadyExists(1))
+        ));
+    }
+
+    #[test]
+    fn test_add_gate() {
+        let mut circuit = Circuit::new();
+
+        circuit.add_node(1, Node::new()).unwrap();
+        circuit.add_node(2, Node::new()).unwrap();
+        circuit.add_node(3, Node::new()).unwrap();
+
+        let result = circuit.add_gate(Gate::new(Operation::Add, 1, 2, 3));
+        assert!(result.is_ok());
         assert_eq!(circuit.gates.len(), 1);
     }
 
     #[test]
-    fn test_circuit_execute_simple_addition() {
+    fn test_add_gate_error() {
         let mut circuit = Circuit::new();
-        circuit.add_node(1, Node::new());
-        circuit.add_node(2, Node::new());
-        circuit.add_node(3, Node::new());
 
-        circuit.add_gate(Gate::new(Operation::Add, 1, 2, 3));
+        circuit.add_node(1, Node::new()).unwrap();
+        circuit.add_node(3, Node::new()).unwrap();
+
+        let result = circuit.add_gate(Gate::new(Operation::Add, 1, 2, 3));
+        assert!(matches!(result, Err(CircuitError::NodeNotFound(2))));
+    }
+
+    #[test]
+    fn test_execute() {
+        let mut circuit = Circuit::new();
+
+        circuit.add_node(1, Node::new()).unwrap();
+        circuit.add_node(2, Node::new()).unwrap();
+        circuit.add_node(3, Node::new()).unwrap();
+        circuit
+            .add_gate(Gate::new(Operation::Add, 1, 2, 3))
+            .unwrap();
 
         let input_values = vec![5, 10];
         let output = circuit.execute(&input_values).unwrap();
@@ -309,18 +341,35 @@ mod tests {
     }
 
     #[test]
-    fn test_circuit_error_handling() {
+    fn test_execute_error_invalid_input_size() {
         let mut circuit = Circuit::new();
-        circuit.add_node(1, Node::new());
-        circuit.add_node(2, Node::new());
+
+        circuit.add_node(1, Node::new()).unwrap();
+        circuit.add_node(2, Node::new()).unwrap();
 
         let result = circuit.execute(&[1]);
         assert!(matches!(result, Err(CircuitError::InvalidInputSize)));
+    }
 
-        circuit.add_node(3, Node::new());
-        circuit.add_gate(Gate::new(Operation::Add, 1, 4, 3));
+    #[test]
+    fn test_circuit_error_output_node_pre_assigned() {
+        let mut circuit = Circuit::new();
 
-        let result = circuit.execute(&[1, 2]);
-        assert!(matches!(result, Err(CircuitError::NodeNotFound(4))));
+        circuit.add_node(1, Node::new()).unwrap();
+        circuit.add_node(2, Node::new()).unwrap();
+        circuit.add_node(3, Node::new()).unwrap();
+        circuit
+            .add_gate(Gate::new(Operation::Add, 1, 2, 3))
+            .unwrap();
+        circuit
+            .add_gate(Gate::new(Operation::Multiply, 1, 3, 3))
+            .unwrap();
+
+        let input_values = vec![5, 10];
+        let result = circuit.execute(&input_values);
+        assert!(matches!(
+            result,
+            Err(CircuitError::OutputNodePreAssigned(3))
+        ));
     }
 }
