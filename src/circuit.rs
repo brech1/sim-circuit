@@ -2,7 +2,7 @@
 //!
 //! Circuit module.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use thiserror::Error;
 
 /// Circuit node struct.
@@ -181,36 +181,85 @@ impl Circuit {
         }
 
         let mut local_node_values = HashMap::new();
+
+        // Tracks the number of dependencies each node has.
+        let mut in_degree = HashMap::new();
+        // Maps each input node to the set of output nodes that directly depend on its value.
+        let mut dependency_graph = HashMap::new();
+        // Queue of nodes with no dependencies, ready to be processed.
+        let mut zero_in_degree = VecDeque::new();
+
+        // Initialize input nodes with input values
         for (&node_id, &value) in input_nodes.iter().zip(inputs) {
             local_node_values.insert(node_id, value);
         }
 
-        // Execute gates
+        // Build dependency graph and in-degree map
         for gate in &self.gates {
-            let left_input = *local_node_values
+            let output = gate.output;
+
+            for &input in &[gate.left_input, gate.right_input] {
+                dependency_graph
+                    .entry(input)
+                    .or_insert_with(HashSet::new)
+                    .insert(output);
+                *in_degree.entry(output).or_insert(0) += 1;
+            }
+        }
+
+        // Add nodes with zero in-degree
+        for node in self.nodes.keys() {
+            if in_degree.get(node).is_none() {
+                zero_in_degree.push_back(*node);
+            }
+        }
+
+        // Implement Kahn's Algorithm
+        let mut sorted_nodes = Vec::new();
+        while let Some(node) = zero_in_degree.pop_front() {
+            sorted_nodes.push(node);
+            if let Some(dependents) = dependency_graph.remove(&node) {
+                for dependent in dependents {
+                    let degree = in_degree.get_mut(&dependent).unwrap();
+                    *degree -= 1;
+                    if *degree == 0 {
+                        zero_in_degree.push_back(dependent);
+                    }
+                }
+            }
+        }
+
+        // Check for unprocessed nodes
+        if sorted_nodes.len() != self.nodes.len() {
+            return Err(CircuitError::CyclicDependencyDetected);
+        }
+
+        // Execute gates in topological order
+        for gate in &self.gates {
+            let left_value = *local_node_values
                 .get(&gate.left_input)
                 .ok_or_else(|| CircuitError::NodeValueNotAssigned(gate.left_input))?;
-            let right_input = *local_node_values
+            let right_value = *local_node_values
                 .get(&gate.right_input)
                 .ok_or_else(|| CircuitError::NodeValueNotAssigned(gate.right_input))?;
+            let result = gate.execute(left_value, right_value);
 
-            let output = gate.execute(left_input, right_input);
-
+            // Check if the output node already has a value assigned
             if local_node_values.contains_key(&gate.output) {
                 return Err(CircuitError::OutputNodePreAssigned(gate.output));
             }
 
-            local_node_values.insert(gate.output, output);
+            local_node_values.insert(gate.output, result);
         }
 
-        // Collect output values from temporary storage
+        // Collect output values
         output_nodes
             .iter()
-            .map(|node_id| {
+            .map(|&node_id| {
                 local_node_values
-                    .get(node_id)
+                    .get(&node_id)
                     .copied()
-                    .ok_or(CircuitError::NodeValueNotFound(*node_id))
+                    .ok_or(CircuitError::NodeValueNotFound(node_id))
             })
             .collect()
     }
@@ -227,6 +276,8 @@ impl Circuit {
 
 #[derive(Error, Debug)]
 pub enum CircuitError {
+    #[error("Cyclic dependency detected")]
+    CyclicDependencyDetected,
     #[error("Invalid input size")]
     InvalidInputSize,
     #[error("Node {0} already exists")]
@@ -331,6 +382,7 @@ mod tests {
         circuit.add_node(1, Node::new()).unwrap();
         circuit.add_node(2, Node::new()).unwrap();
         circuit.add_node(3, Node::new()).unwrap();
+
         circuit
             .add_gate(Gate::new(Operation::Add, 1, 2, 3))
             .unwrap();
@@ -338,6 +390,33 @@ mod tests {
         let input_values = vec![5, 10];
         let output = circuit.execute(&input_values).unwrap();
         assert_eq!(output, vec![15]);
+    }
+
+    #[test]
+    fn test_execute_cross_dep() {
+        let mut circuit = Circuit::new();
+
+        circuit.add_node(1, Node::new()).unwrap();
+        circuit.add_node(2, Node::new()).unwrap();
+        circuit.add_node(3, Node::new()).unwrap();
+        circuit.add_node(4, Node::new()).unwrap();
+        circuit.add_node(5, Node::new()).unwrap();
+
+        circuit
+            .add_gate(Gate::new(Operation::Add, 1, 2, 3))
+            .unwrap();
+        circuit
+            .add_gate(Gate::new(Operation::Multiply, 3, 2, 4))
+            .unwrap();
+        circuit
+            .add_gate(Gate::new(Operation::Subtract, 4, 1, 5))
+            .unwrap();
+
+        // ((3 + 2) * 2 ) - 3 = 7
+
+        let input_values = vec![3, 2];
+        let output = circuit.execute(&input_values).unwrap();
+        assert_eq!(output, vec![7]);
     }
 
     #[test]
@@ -352,24 +431,33 @@ mod tests {
     }
 
     #[test]
-    fn test_circuit_error_output_node_pre_assigned() {
+    fn test_execute_error_cyclic_dependency() {
         let mut circuit = Circuit::new();
 
         circuit.add_node(1, Node::new()).unwrap();
         circuit.add_node(2, Node::new()).unwrap();
         circuit.add_node(3, Node::new()).unwrap();
+        circuit.add_node(4, Node::new()).unwrap();
+        circuit.add_node(5, Node::new()).unwrap();
+
+        // Valid computation
         circuit
             .add_gate(Gate::new(Operation::Add, 1, 2, 3))
             .unwrap();
+
+        // Cyclic dependency
         circuit
-            .add_gate(Gate::new(Operation::Multiply, 1, 3, 3))
+            .add_gate(Gate::new(Operation::Multiply, 3, 4, 5))
+            .unwrap();
+        circuit
+            .add_gate(Gate::new(Operation::Add, 5, 1, 4))
             .unwrap();
 
-        let input_values = vec![5, 10];
+        let input_values = vec![1, 2];
         let result = circuit.execute(&input_values);
         assert!(matches!(
             result,
-            Err(CircuitError::OutputNodePreAssigned(3))
+            Err(CircuitError::CyclicDependencyDetected)
         ));
     }
 }
