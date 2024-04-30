@@ -274,7 +274,7 @@ impl Circuit {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum CircuitError {
     #[error("Cyclic dependency detected")]
     CyclicDependencyDetected,
@@ -344,11 +344,10 @@ mod tests {
         let mut circuit = Circuit::new();
         let node = Node::new();
 
-        assert!(circuit.add_node(1, node).is_ok());
-        assert!(matches!(
-            circuit.add_node(1, Node::new()),
-            Err(CircuitError::NodeAlreadyExists(1))
-        ));
+        circuit.add_node(1, node).unwrap();
+
+        let err = circuit.add_node(1, Node::new());
+        assert_eq!(err, Err(CircuitError::NodeAlreadyExists(1)));
     }
 
     #[test]
@@ -371,8 +370,8 @@ mod tests {
         circuit.add_node(1, Node::new()).unwrap();
         circuit.add_node(3, Node::new()).unwrap();
 
-        let result = circuit.add_gate(Gate::new(Operation::Add, 1, 2, 3));
-        assert!(matches!(result, Err(CircuitError::NodeNotFound(2))));
+        let err = circuit.add_gate(Gate::new(Operation::Add, 1, 2, 3));
+        assert_eq!(err, Err(CircuitError::NodeNotFound(2)));
     }
 
     #[test]
@@ -426,8 +425,8 @@ mod tests {
         circuit.add_node(1, Node::new()).unwrap();
         circuit.add_node(2, Node::new()).unwrap();
 
-        let result = circuit.execute(&[1]);
-        assert!(matches!(result, Err(CircuitError::InvalidInputSize)));
+        let err = circuit.execute(&[1]);
+        assert_eq!(err, Err(CircuitError::InvalidInputSize));
     }
 
     #[test]
@@ -454,10 +453,7 @@ mod tests {
             .unwrap();
 
         let input_values = vec![1, 2];
-        let result = circuit.execute(&input_values);
-        assert!(matches!(
-            result,
-            Err(CircuitError::CyclicDependencyDetected)
-        ));
+        let err = circuit.execute(&input_values);
+        assert_eq!(err, Err(CircuitError::CyclicDependencyDetected));
     }
 }
