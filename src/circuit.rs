@@ -5,6 +5,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use thiserror::Error;
 
+#[derive(Debug, Default)]
 /// Circuit node struct.
 pub struct Node {
     /// Node value.
@@ -28,6 +29,7 @@ impl Node {
     }
 }
 
+#[derive(Debug)]
 /// Gate operations.
 pub enum Operation {
     // Arithmetic Operations
@@ -58,6 +60,7 @@ pub enum Operation {
     ShiftRight,
 }
 
+#[derive(Debug)]
 /// Circuit gate struct.
 pub struct Gate {
     /// Gate operation.
@@ -88,7 +91,7 @@ impl Gate {
             Operation::Subtract => left_input - right_input,
             Operation::Multiply => left_input * right_input,
             Operation::Divide => left_input / right_input, // Will panic if right_input is zero
-            Operation::Exponentiate => left_input.pow(right_input as u32),
+            Operation::Exponentiate => left_input.pow(right_input),
             Operation::Modulus => left_input % right_input, // Will panic if right_input is zero
             Operation::Equals => (left_input == right_input) as u32,
             Operation::NotEquals => (left_input != right_input) as u32,
@@ -107,6 +110,7 @@ impl Gate {
     }
 }
 
+#[derive(Debug, Default)]
 /// Generic circuit struct.
 pub struct Circuit {
     /// Circuit nodes.
@@ -238,10 +242,10 @@ impl Circuit {
         for gate in &self.gates {
             let left_value = *local_node_values
                 .get(&gate.left_input)
-                .ok_or_else(|| CircuitError::NodeValueNotAssigned(gate.left_input))?;
+                .ok_or(CircuitError::NodeValueNotAssigned(gate.left_input))?;
             let right_value = *local_node_values
                 .get(&gate.right_input)
-                .ok_or_else(|| CircuitError::NodeValueNotAssigned(gate.right_input))?;
+                .ok_or(CircuitError::NodeValueNotAssigned(gate.right_input))?;
             let result = gate.execute(left_value, right_value);
 
             // Check if the output node already has a value assigned
