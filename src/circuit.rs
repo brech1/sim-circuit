@@ -181,7 +181,7 @@ impl Circuit {
 
         // Validate input size
         if inputs.len() != input_nodes.len() {
-            return Err(CircuitError::InvalidInputSize);
+            return Err(CircuitError::InvalidInputSize(inputs.len() as u32, input_nodes.len() as u32));
         }
 
         let mut local_node_values = HashMap::new();
@@ -282,8 +282,8 @@ impl Circuit {
 pub enum CircuitError {
     #[error("Cyclic dependency detected")]
     CyclicDependencyDetected,
-    #[error("Invalid input size")]
-    InvalidInputSize,
+    #[error("Invalid input size: received {0}, need {1}")]
+    InvalidInputSize(u32, u32),
     #[error("Node {0} already exists")]
     NodeAlreadyExists(u32),
     #[error("Node {0} not found")]
@@ -430,7 +430,7 @@ mod tests {
         circuit.add_node(2, Node::new()).unwrap();
 
         let err = circuit.execute(&[1]);
-        assert_eq!(err, Err(CircuitError::InvalidInputSize));
+        assert_eq!(err, Err(CircuitError::InvalidInputSize(1, 0)));
     }
 
     #[test]
