@@ -37,6 +37,7 @@ pub enum Operation {
     Subtract,
     Multiply,
     Divide,
+    IntegerDivide,
     Exponentiate,
     Modulus,
 
@@ -91,6 +92,7 @@ impl Gate {
             Operation::Subtract => left_input - right_input,
             Operation::Multiply => left_input * right_input,
             Operation::Divide => left_input / right_input, // Will panic if right_input is zero
+            Operation::IntegerDivide => left_input / right_input, // Will panic if right_input is zero
             Operation::Exponentiate => left_input.pow(right_input),
             Operation::Modulus => left_input % right_input, // Will panic if right_input is zero
             Operation::Equals => (left_input == right_input) as u32,
