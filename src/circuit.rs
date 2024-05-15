@@ -207,8 +207,8 @@ impl Circuit {
             for &input in &[gate.left_input, gate.right_input] {
                 dependency_graph
                     .entry(input)
-                    .or_insert_with(HashSet::new)
-                    .insert(output);
+                    .or_insert_with(Vec::new)
+                    .push(output);
                 *in_degree.entry(output).or_insert(0) += 1;
             }
         }
