@@ -37,6 +37,7 @@ pub enum Operation {
     Subtract,
     Multiply,
     Divide,
+    IntegerDivide,
     Exponentiate,
     Modulus,
 
@@ -91,6 +92,7 @@ impl Gate {
             Operation::Subtract => left_input - right_input,
             Operation::Multiply => left_input * right_input,
             Operation::Divide => left_input / right_input, // Will panic if right_input is zero
+            Operation::IntegerDivide => left_input / right_input, // Will panic if right_input is zero
             Operation::Exponentiate => left_input.pow(right_input),
             Operation::Modulus => left_input % right_input, // Will panic if right_input is zero
             Operation::Equals => (left_input == right_input) as u32,
@@ -205,8 +207,8 @@ impl Circuit {
             for &input in &[gate.left_input, gate.right_input] {
                 dependency_graph
                     .entry(input)
-                    .or_insert_with(HashSet::new)
-                    .insert(output);
+                    .or_insert_with(Vec::new)
+                    .push(output);
                 *in_degree.entry(output).or_insert(0) += 1;
             }
         }
