@@ -5,8 +5,8 @@ use circom_2_arithc::arithmetic_circuit::ArithmeticCircuit;
 use crate::number::{Number, NumberError};
 
 pub fn simulate<N: Number>(
-    circuit: ArithmeticCircuit,
-    inputs: HashMap<String, N>,
+    circuit: &ArithmeticCircuit,
+    inputs: &HashMap<String, N>,
 ) -> Result<HashMap<String, N>, NumberError> {
     let mut wires = vec![N::zero(); circuit.wire_count as usize];
 

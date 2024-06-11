@@ -52,8 +52,8 @@ fn test_matrix_multiplication() {
     // [3 4] x [1 1] = [7 7]
 
     let outputs = simulate(
-        circuit,
-        [
+        &circuit,
+        &[
             ("a11".to_string(), NumberU32(1)),
             ("a12".to_string(), NumberU32(2)),
             ("a21".to_string(), NumberU32(3)),

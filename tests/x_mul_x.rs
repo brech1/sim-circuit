@@ -22,8 +22,8 @@ fn test_x_mul_x() {
     // 5 * 5 = 25
 
     let outputs = simulate(
-        circuit,
-        [("x".to_string(), NumberU32(5))].into_iter().collect(),
+        &circuit,
+        &[("x".to_string(), NumberU32(5))].into_iter().collect(),
     )
     .unwrap();
 

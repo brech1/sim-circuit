@@ -1138,7 +1138,10 @@ name = "sim-circuit"
 version = "0.1.0"
 dependencies = [
  "circom-2-arithc",
+ "clap",
  "lalrpop-util",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 

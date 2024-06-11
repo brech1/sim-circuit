@@ -7,3 +7,6 @@ edition = "2021"
 thiserror = "1.0.59"
 circom-2-arithc = { git = "https://github.com/namnc/circom-2-arithc.git", branch = "issue-38-better-circuit-struct" }
 lalrpop-util = { version = "0.19.12", features = ["lexer"] }
+clap = { version = "4.5.4", features = ["derive"] }
+serde = "1.0.203"
+serde_json = "1.0.117"
