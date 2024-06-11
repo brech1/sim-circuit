@@ -10,7 +10,7 @@ pub fn main() {
         circuit_dir,
         circuit,
         circuit_info,
-        circuit_inputs,
+        circuit_input,
         output,
     } = Args::parse();
 
@@ -26,9 +26,9 @@ pub fn main() {
         _ => err_required_args(),
     };
 
-    let circuit_inputs_path = match (&circuit_dir, circuit_inputs) {
-        (_, Some(circuit_inputs)) => circuit_inputs,
-        (Some(circuit_dir), _) => circuit_dir.join("circuit_inputs.json"),
+    let circuit_input_path = match (&circuit_dir, circuit_input) {
+        (_, Some(circuit_input)) => circuit_input,
+        (Some(circuit_dir), _) => circuit_dir.join("circuit_input.json"),
         _ => err_required_args(),
     };
 
@@ -41,17 +41,17 @@ pub fn main() {
     )
     .unwrap();
 
-    let circuit_inputs =
-        from_str::<HashMap<String, String>>(&std::fs::read_to_string(circuit_inputs_path).unwrap())
+    let circuit_input =
+        from_str::<HashMap<String, String>>(&std::fs::read_to_string(circuit_input_path).unwrap())
             .unwrap();
 
-    let mut inputs_u32 = HashMap::<String, NumberU32>::new();
+    let mut input_u32 = HashMap::<String, NumberU32>::new();
 
-    for (name, value) in circuit_inputs {
-        inputs_u32.insert(name, NumberU32(value.parse().unwrap()));
+    for (name, value) in circuit_input {
+        input_u32.insert(name, NumberU32(value.parse().unwrap()));
     }
 
-    let outputs = simulate(&circuit, &inputs_u32).unwrap();
+    let outputs = simulate(&circuit, &input_u32).unwrap();
 
     let mut output_strings = HashMap::<String, String>::new();
 
@@ -78,7 +78,7 @@ fn err_required_args() -> ! {
 #[derive(Parser, Debug)]
 #[clap(name = "Circuit Simulator")]
 struct Args {
-    /// Circuit directory containing circuit.txt, circuit_info.json, circuit_inputs.json
+    /// Circuit directory containing circuit.txt, circuit_info.json, circuit_input.json
     #[arg(long, help = "Path to circuit directory")]
     circuit_dir: Option<PathBuf>,
 
@@ -88,8 +88,8 @@ struct Args {
     #[arg(long, help = "Path to circuit_info.json")]
     circuit_info: Option<PathBuf>,
 
-    #[arg(long, help = "Path to circuit_inputs.json")]
-    circuit_inputs: Option<PathBuf>,
+    #[arg(long, help = "Path to circuit_input.json")]
+    circuit_input: Option<PathBuf>,
 
     /// Output file to write the result
     #[arg(short, long, help = "Path to output file (default: stdout)")]
