@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
-use circom_2_arithc::arithmetic_circuit::ArithmeticCircuit;
-
-use crate::number::{Number, NumberError};
+use crate::{
+    arithmetic_circuit::ArithmeticCircuit,
+    number::{Number, NumberError},
+};
 
 pub fn simulate<N: Number>(
     circuit: &ArithmeticCircuit,

@@ -2,6 +2,7 @@
 //!
 //! Utilities for simulating logic gate circuits.
 
+pub mod arithmetic_circuit;
 mod number;
 mod number_u32;
 mod simulate;

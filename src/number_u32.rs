@@ -1,6 +1,7 @@
-use circom_2_arithc::compiler::AGateType;
-
-use crate::number::{Number, NumberError};
+use crate::{
+    arithmetic_circuit::AGateType,
+    number::{Number, NumberError},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NumberU32(pub u32);

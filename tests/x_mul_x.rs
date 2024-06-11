@@ -1,6 +1,5 @@
-use circom_2_arithc::arithmetic_circuit::ArithmeticCircuit;
 use serde_json::from_str;
-use sim_circuit::{simulate, NumberU32};
+use sim_circuit::{arithmetic_circuit::ArithmeticCircuit, simulate, NumberU32};
 
 #[test]
 fn test_x_mul_x() {

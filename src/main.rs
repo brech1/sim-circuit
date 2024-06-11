@@ -1,9 +1,11 @@
 use std::{collections::HashMap, fs::File, io::BufReader, path::PathBuf};
 
-use circom_2_arithc::arithmetic_circuit::{ArithmeticCircuit, CircuitInfo};
 use clap::Parser;
 use serde_json::from_str;
-use sim_circuit::{simulate, Number, NumberU32};
+use sim_circuit::{
+    arithmetic_circuit::{ArithmeticCircuit, CircuitInfo},
+    simulate, Number, NumberU32,
+};
 
 pub fn main() {
     let Args {

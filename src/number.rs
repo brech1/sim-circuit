@@ -1,4 +1,4 @@
-use circom_2_arithc::compiler::AGateType;
+use crate::arithmetic_circuit::AGateType;
 
 pub trait Number: Sized + Clone + PartialEq + Eq {
     fn zero() -> Self;
