@@ -1,32 +1,34 @@
-use circom_2_arithc::arithmetic_circuit::{ArithmeticCircuit, CircuitInfo};
+use circom_2_arithc::arithmetic_circuit::ArithmeticCircuit;
+use serde_json::from_str;
 use sim_circuit::{simulate, NumberU32};
 
 #[test]
 fn test_matrix_multiplication() {
     let circuit = ArithmeticCircuit::from_info_and_bristol_string(
-        CircuitInfo {
-            input_name_to_wire_index: [
-                ("a11".to_string(), 0),
-                ("a12".to_string(), 1),
-                ("a21".to_string(), 2),
-                ("a22".to_string(), 3),
-                ("b11".to_string(), 4),
-                ("b12".to_string(), 5),
-                ("b21".to_string(), 6),
-                ("b22".to_string(), 7),
-            ]
-            .into_iter()
-            .collect(),
-            constants: Default::default(),
-            output_name_to_wire_index: [
-                ("c11".to_string(), 10),
-                ("c12".to_string(), 13),
-                ("c21".to_string(), 16),
-                ("c22".to_string(), 19),
-            ]
-            .into_iter()
-            .collect(),
-        },
+        from_str(
+            r#"
+                {
+                    "input_name_to_wire_index": {
+                        "a11": 0,
+                        "a12": 1,
+                        "a21": 2,
+                        "a22": 3,
+                        "b11": 4,
+                        "b12": 5,
+                        "b21": 6,
+                        "b22": 7
+                    },
+                    "constants": {},
+                    "output_name_to_wire_index": {
+                        "c11": 10,
+                        "c12": 13,
+                        "c21": 16,
+                        "c22": 19
+                    }
+                }
+            "#,
+        )
+        .unwrap(),
         "
             12 20
             8 1 1 1 1 1 1 1 1
