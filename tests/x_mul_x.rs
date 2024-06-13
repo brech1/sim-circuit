@@ -1,20 +1,43 @@
-use sim_circuit::circuit::{Circuit, Gate, Node, Operation};
+use serde_json::from_str;
+use sim_circuit::{arithmetic_circuit::ArithmeticCircuit, simulate, NumberU32};
 
 #[test]
 fn test_x_mul_x() {
-    let mut circuit = Circuit::new();
+    let circuit = ArithmeticCircuit::from_info_and_bristol_string(
+        from_str(
+            r#"
+                {
+                    "input_name_to_wire_index": {
+                        "x": 0
+                    },
+                    "constants": {},
+                    "output_name_to_wire_index": {
+                        "y": 1
+                    }
+                }
+            "#,
+        )
+        .unwrap(),
+        "
+            1 2
+            1 1
+            1 1
 
-    // Initialize nodes
-    circuit.add_node(1, Node::new()).unwrap();
-    circuit.add_node(2, Node::new()).unwrap();
+            2 1 0 0 1 AMul
+        ",
+    )
+    .unwrap();
 
-    // out = x * x
-    circuit
-        .add_gate(Gate::new(Operation::Multiply, 1, 1, 2))
-        .unwrap();
+    // 5 * 5 = 25
 
-    let inputs = vec![5];
-    let outputs = circuit.execute(&inputs).unwrap();
+    let outputs = simulate(
+        &circuit,
+        &[("x".to_string(), NumberU32(5))].into_iter().collect(),
+    )
+    .unwrap();
 
-    assert_eq!(outputs, vec![25]);
+    assert_eq!(
+        outputs,
+        [("y".to_string(), NumberU32(25))].into_iter().collect()
+    );
 }
