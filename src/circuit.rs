@@ -152,11 +152,7 @@ where
 /// Represents a generic circuit with a topological, linear execution order.
 /// Utilizes a generic memory to store wire values and execute gates.
 #[derive(Debug)]
-pub struct GenericCircuit<T, U>
-where
-    T: Component + Executable<U, CircuitMemory<U>>,
-    U: Copy,
-{
+pub struct GenericCircuit<T, U> {
     components: Vec<T>,
     inputs: Vec<usize>,
     outputs: Vec<usize>,
@@ -228,11 +224,7 @@ where
     }
 }
 
-pub struct GenericCircuitExecutor<T, U>
-where
-    T: Component + Executable<U, CircuitMemory<U>>,
-    U: Copy,
-{
+pub struct GenericCircuitExecutor<T, U> {
     circuit: GenericCircuit<T, U>,
     memory: CircuitMemory<U>,
 }
@@ -252,31 +244,53 @@ where
         }
     }
 
-    /// Runs the circuit using the provided input values.
-    pub fn run(&mut self, inputs: &[U]) -> Result<(), CircuitExecutionError> {
-        // Check if the input values matches the circuit inputs
+    /// Runs the circuit using the provided input values and returns a map of the output values.
+    pub fn run(
+        &mut self,
+        inputs: &HashMap<usize, U>,
+    ) -> Result<HashMap<usize, U>, CircuitExecutionError> {
+        // Check if the input values match the circuit inputs
         if inputs.len() != self.circuit.inputs().len() {
             return Err(CircuitExecutionError::InputLengthMismatch);
         }
 
-        // Set inputs in the memory
-        for (input_index, &value) in self.circuit.inputs().iter().zip(inputs.iter()) {
-            self.memory
-                .write(*input_index, value)
-                .map_err(CircuitExecutionError::MemoryError)?;
+        // Set inputs in  memory
+        for &input_index in self.circuit.inputs() {
+            if let Some(&value) = inputs.get(&input_index) {
+                // Translate external input index to internal memory index using the memory_map
+                if let Some(&internal_index) = self.circuit.memory_map.get(&input_index) {
+                    self.memory
+                        .write(internal_index, value)
+                        .map_err(CircuitExecutionError::MemoryError)?;
+                } else {
+                    return Err(CircuitExecutionError::MemoryMappingError(input_index));
+                }
+            } else {
+                return Err(CircuitExecutionError::InputNotFoundError(input_index));
+            }
         }
 
-        // Execute circuit
+        // Execute the circuit
         self.circuit.execute(&mut self.memory)?;
 
-        // Check if all outputs are defined
+        // Retrieve and return output values
+        let mut output_values = HashMap::new();
         for &output_index in self.circuit.outputs() {
-            if self.memory.read(output_index).is_err() {
+            if let Some(&internal_index) = self.circuit.memory_map.get(&output_index) {
+                match self.memory.read(internal_index) {
+                    Ok(value) => {
+                        output_values.insert(output_index, value);
+                    }
+                    Err(e) => {
+                        return Err(CircuitExecutionError::MemoryError(e));
+                    }
+                }
+            } else {
                 return Err(CircuitExecutionError::UndefinedOutput(output_index));
             }
         }
 
-        Ok(())
+        Ok(output_values)
     }
 }
 
@@ -304,11 +318,15 @@ pub enum CircuitBuilderError {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum CircuitExecutionError {
-    #[error("Component execution Error")]
+    #[error("Component execution error")]
     ComponentExecutionError,
+    #[error("Input {0} not defined")]
+    InputNotFoundError(usize),
     #[error("Input length mismatch")]
     InputLengthMismatch,
-    #[error("Circuit memory error")]
+    #[error("Input {0} not found in memory as a circuit input")]
+    MemoryMappingError(usize),
+    #[error("Circuit memory error: {0}")]
     MemoryError(#[from] CircuitMemoryError),
     #[error("Output at index {0} is undefined after circuit execution")]
     UndefinedOutput(usize),

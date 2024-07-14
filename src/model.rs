@@ -23,9 +23,9 @@ pub trait Component {
 }
 
 /// Executable component trait.
-pub trait Executable<T, M: Memory<T>>: Component {
+pub trait Executable<T, U: Memory<T>>: Component {
     type Error;
 
     /// Executes the component using the provided memory.
-    fn execute(&self, memory: &mut M) -> Result<(), Self::Error>;
+    fn execute(&self, memory: &mut U) -> Result<(), Self::Error>;
 }
