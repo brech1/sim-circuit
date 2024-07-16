@@ -7,7 +7,7 @@ use std::{
 use thiserror::Error;
 
 /// Generic memory for circuit simulation.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CircuitMemory<T> {
     wires: Vec<Option<T>>,
 }
@@ -58,16 +58,13 @@ where
 }
 
 /// Circuit builder.
-#[derive(Debug)]
-pub struct CircuitBuilder<T, U>
-where
-    T: Component + Executable<U, CircuitMemory<U>>,
-    U: Copy,
-{
+#[derive(Debug, PartialEq, Eq)]
+pub struct CircuitBuilder<T, U> {
     components: Vec<T>,
-    index_map: HashMap<usize, usize>,
+    circuit_inputs: Vec<usize>,
     component_inputs: HashSet<usize>,
     component_outputs: HashSet<usize>,
+    index_map: HashMap<usize, usize>,
     next_index: usize,
     _phantom: PhantomData<U>,
 }
@@ -81,12 +78,19 @@ where
     pub fn new() -> Self {
         Self {
             components: Vec::new(),
+            circuit_inputs: Vec::new(),
             index_map: HashMap::new(),
             component_inputs: HashSet::new(),
             component_outputs: HashSet::new(),
             next_index: 0,
             _phantom: PhantomData,
         }
+    }
+
+    /// Adds circuit inputs to the builder.
+    pub fn add_inputs(&mut self, inputs: &[usize]) -> &mut Self {
+        self.circuit_inputs.extend(inputs.iter().copied());
+        self
     }
 
     /// Adds a component to the builder.
@@ -96,8 +100,8 @@ where
         }
 
         for &input in component.inputs() {
-            // Verify that the input is connected to an existing output.
-            if !self.component_outputs.contains(&input) {
+            // Verify that the input is connected to an existing component output or is a circuit input.
+            if !self.component_outputs.contains(&input) && !self.circuit_inputs.contains(&input) {
                 return Err(CircuitBuilderError::TopologicalOrderError(input));
             }
 
@@ -110,6 +114,11 @@ where
         }
 
         for &output in component.outputs() {
+            // Verify that the output is not a circuit input.
+            if self.circuit_inputs.contains(&output) {
+                return Err(CircuitBuilderError::OutputIsACircuitInput(output));
+            }
+
             self.component_outputs.insert(output);
             self.index_map.entry(output).or_insert_with(|| {
                 let index = self.next_index;
@@ -151,7 +160,7 @@ where
 
 /// Represents a generic circuit with a topological, linear execution order.
 /// Utilizes a generic memory to store wire values and execute gates.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct GenericCircuit<T, U> {
     components: Vec<T>,
     inputs: Vec<usize>,
@@ -224,6 +233,7 @@ where
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct GenericCircuitExecutor<T, U> {
     circuit: GenericCircuit<T, U>,
     memory: CircuitMemory<U>,
@@ -314,6 +324,8 @@ pub enum CircuitBuilderError {
     DisconnectedComponent,
     #[error("Component input {0} not connected to any existing component outputs")]
     TopologicalOrderError(usize),
+    #[error("Output {0} is defined as a circuit input")]
+    OutputIsACircuitInput(usize),
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -330,4 +342,225 @@ pub enum CircuitExecutionError {
     MemoryError(#[from] CircuitMemoryError),
     #[error("Output at index {0} is undefined after circuit execution")]
     UndefinedOutput(usize),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fmt::Debug;
+
+    #[derive(PartialEq, Eq, Clone)]
+    pub enum BinaryOperation {
+        AND,
+        XOR,
+    }
+
+    impl Debug for BinaryOperation {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                BinaryOperation::AND => write!(f, "AND"),
+                BinaryOperation::XOR => write!(f, "XOR"),
+            }
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq, Clone)]
+    pub struct BinaryGate {
+        op: BinaryOperation,
+        inputs: Vec<usize>,
+        outputs: Vec<usize>,
+    }
+
+    impl crate::model::Component for BinaryGate {
+        fn inputs(&self) -> &[usize] {
+            &self.inputs
+        }
+
+        fn outputs(&self) -> &[usize] {
+            &self.outputs
+        }
+    }
+
+    impl Executable<bool, CircuitMemory<bool>> for BinaryGate {
+        type Error = ();
+
+        fn execute(
+            &self,
+            memory: &mut crate::circuit::CircuitMemory<bool>,
+        ) -> Result<(), Self::Error> {
+            let a = memory.read(self.inputs[0]).unwrap();
+            let b = memory.read(self.inputs[1]).unwrap();
+
+            let result = match self.op {
+                BinaryOperation::AND => a && b,
+                BinaryOperation::XOR => a ^ b,
+            };
+            memory.write(self.outputs[0], result).unwrap();
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_memory_operations() {
+        let mut memory: CircuitMemory<bool> = CircuitMemory::new(10);
+
+        // Test read error on uninitialized slot
+        assert_eq!(
+            memory.read(1),
+            Err(CircuitMemoryError::UninitializedSlot(1))
+        );
+
+        // Test write and read
+        assert_eq!(memory.write(2, true), Ok(()));
+        assert_eq!(memory.read(2), Ok(true));
+
+        // Test write error on out of bounds
+        assert_eq!(
+            memory.write(11, true),
+            Err(CircuitMemoryError::WriteError(11))
+        );
+
+        // Test read error on out of bounds
+        assert_eq!(memory.read(11), Err(CircuitMemoryError::ReadError(11)));
+
+        // Test rewrite
+        assert_eq!(
+            memory.write(2, false),
+            Err(CircuitMemoryError::RewriteAttempt(2))
+        );
+    }
+
+    #[test]
+    fn test_component_execution() {
+        let mut memory: CircuitMemory<bool> = CircuitMemory::new(5);
+
+        // Test AND gate
+        let and_gate = BinaryGate {
+            op: BinaryOperation::AND,
+            inputs: vec![0, 1],
+            outputs: vec![2],
+        };
+
+        // Initialize inputs
+        memory.write(0, true).unwrap();
+        memory.write(1, false).unwrap();
+
+        // Execute AND gate
+        assert_eq!(and_gate.execute(&mut memory), Ok(()));
+        assert_eq!(memory.read(2), Ok(false));
+
+        // Test XOR gate
+        let xor_gate = BinaryGate {
+            op: BinaryOperation::XOR,
+            inputs: vec![2, 3],
+            outputs: vec![4],
+        };
+
+        // Initialize inputs
+        memory.write(3, true).unwrap();
+
+        // Execute XOR gate
+        assert_eq!(xor_gate.execute(&mut memory), Ok(()));
+        assert_eq!(memory.read(4), Ok(true));
+    }
+
+    #[test]
+    fn test_builder_disconnected_component() {
+        let mut builder = CircuitBuilder::<BinaryGate, bool>::new();
+        let gate = BinaryGate {
+            op: BinaryOperation::AND,
+            inputs: vec![],
+            outputs: vec![],
+        };
+
+        assert_eq!(
+            builder.add_component(gate),
+            Err(CircuitBuilderError::DisconnectedComponent)
+        );
+    }
+
+    #[test]
+    fn test_builder_topological_order() {
+        let mut builder = CircuitBuilder::<BinaryGate, bool>::new();
+        let gate = BinaryGate {
+            op: BinaryOperation::AND,
+            inputs: vec![0],
+            outputs: vec![1],
+        };
+
+        assert_eq!(
+            builder.add_component(gate.clone()),
+            Err(CircuitBuilderError::TopologicalOrderError(0))
+        );
+
+        builder.add_inputs(&[0]);
+
+        assert!(builder.add_component(gate).is_ok());
+
+        let second_gate = BinaryGate {
+            op: BinaryOperation::AND,
+            inputs: vec![1],
+            outputs: vec![2],
+        };
+
+        assert!(builder.add_component(second_gate).is_ok());
+    }
+
+    #[test]
+    fn test_builder_bad_component_output() {
+        let mut builder = CircuitBuilder::<BinaryGate, bool>::new();
+        builder.add_inputs(&[0, 1]);
+
+        let gate = BinaryGate {
+            op: BinaryOperation::XOR,
+            inputs: vec![0],
+            outputs: vec![1],
+        };
+
+        assert_eq!(
+            builder.add_component(gate),
+            Err(CircuitBuilderError::OutputIsACircuitInput(1))
+        );
+    }
+
+    #[test]
+    fn test_builder_empty() {
+        let mut builder = CircuitBuilder::<BinaryGate, bool>::new();
+        assert_eq!(builder.build(), Err(CircuitBuilderError::EmptyBuilder));
+    }
+
+    #[test]
+    fn test_circuit_builder_and_execution() {
+        let mut builder = CircuitBuilder::<BinaryGate, bool>::new();
+
+        // Add circuit inputs
+        builder.add_inputs(&[0, 1, 3]);
+
+        // Creating and adding gates
+        let and_gate = BinaryGate {
+            op: BinaryOperation::AND,
+            inputs: vec![0, 1],
+            outputs: vec![2],
+        };
+
+        let xor_gate = BinaryGate {
+            op: BinaryOperation::XOR,
+            inputs: vec![2, 3],
+            outputs: vec![4],
+        };
+
+        builder.add_component(and_gate).unwrap();
+
+        assert!(builder.add_component(xor_gate).is_ok());
+
+        let circuit = builder.build().unwrap();
+        let mut executor = GenericCircuitExecutor::new(circuit);
+
+        // Setup inputs and run the circuit
+        let input_values = HashMap::from([(0, true), (1, false), (3, true)]);
+
+        let output = executor.run(&input_values).unwrap();
+
+        assert_eq!(output.get(&4), Some(&true));
+    }
 }
