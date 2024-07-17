@@ -2,7 +2,14 @@
 
 [![MIT licensed][mit-badge]][mit-url]
 [![Build Status][actions-badge]][actions-url]
-[![codecov](https://codecov.io/github/brech1/sim-circuit/graph/badge.svg)](https://app.codecov.io/github/brech1/sim-circuit/)
+[![codecov][codecov-badge]][codecov-url]
+
+[mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
+[mit-url]: https://github.com/namnc/circom-2-arithc/blob/master/LICENSE
+[actions-badge]: https://github.com/brech1/sim-circuit/actions/workflows/build.yml/badge.svg
+[actions-url]: https://github.com/brech1/sim-circuit/actions?query=branch%3Amain
+[codecov-badge]: https://codecov.io/github/brech1/sim-circuit/graph/badge.svg
+[codecov-url]: https://app.codecov.io/github/brech1/sim-circuit/
 
 Sim Circuit is a Rust crate that provides a generic circuit model along with predefined structures to build circuits with custom execution over custom values.
 
