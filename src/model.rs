@@ -1,6 +1,6 @@
-//! Circuit Model module.
+//! # Model Module
 //!
-//! Contains the circuit model traits.
+//! Contains the library model traits.
 
 /// Memory trait.
 pub trait Memory<T> {

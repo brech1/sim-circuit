@@ -1,4 +1,8 @@
-use crate::model::{Component, Executable, Memory};
+//! # Circuit Module
+//!
+//! Contains the generic circuit implementation based on the model traits.
+
+use crate::model::*;
 use std::{
     collections::{HashMap, HashSet},
     marker::PhantomData,

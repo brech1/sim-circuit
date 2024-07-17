@@ -1,6 +1,6 @@
 //! # Sim Circuit
 //!
-//! Utilities for simulating logic gate circuits.
+//! Circuit building utilities.
 
 pub mod circuit;
 pub mod model;
