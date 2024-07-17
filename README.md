@@ -1,5 +1,9 @@
 # Sim Circuit
 
+[![MIT licensed][mit-badge]][mit-url]
+[![Build Status][actions-badge]][actions-url]
+[![codecov](https://codecov.io/github/brech1/sim-circuit/graph/badge.svg)](https://app.codecov.io/github/brech1/sim-circuit/)
+
 Sim Circuit is a Rust crate that provides a generic circuit model along with predefined structures to build circuits with custom execution over custom values.
 
 ## Model
