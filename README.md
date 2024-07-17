@@ -64,7 +64,7 @@ pub trait Executable<T, U: Memory<T>>: Component {
 
 These are the provided structures to help build circuits with the model.
 
-In the `CircuitMemory`, the component type `T` is the value type. In the rest of the components, `T` is the component type `T` and `U` the memory value type.
+In the `CircuitMemory`, `T` is the memory value type. In the rest of the components, `T` is the component type `T` and `U` the memory value type.
 
 ### Circuit Memory
 
