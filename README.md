@@ -7,7 +7,7 @@
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: https://github.com/namnc/circom-2-arithc/blob/master/LICENSE
 [actions-badge]: https://github.com/brech1/sim-circuit/actions/workflows/build.yml/badge.svg
-[actions-url]: https://github.com/brech1/sim-circuit/actions?query=branch%3Amain
+[actions-url]: https://github.com/brech1/sim-circuit/actions?query=branch%3Amaster
 [codecov-badge]: https://codecov.io/github/brech1/sim-circuit/graph/badge.svg
 [codecov-url]: https://app.codecov.io/github/brech1/sim-circuit/
 
