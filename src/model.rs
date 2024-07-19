@@ -20,6 +20,12 @@ pub trait Component {
 
     /// Returns the indices of the output nodes.
     fn outputs(&self) -> &[usize];
+
+    /// Sets the input nodes.
+    fn set_inputs(&mut self, inputs: Vec<usize>);
+
+    /// Sets the output nodes.
+    fn set_outputs(&mut self, outputs: Vec<usize>);
 }
 
 /// Executable component trait.

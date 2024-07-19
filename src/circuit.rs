@@ -97,25 +97,27 @@ where
     }
 
     /// Adds a component to the builder.
-    pub fn add_component(&mut self, component: T) -> Result<&mut Self, CircuitBuilderError> {
+    pub fn add_component(&mut self, mut component: T) -> Result<&mut Self, CircuitBuilderError> {
         if component.inputs().is_empty() || component.outputs().is_empty() {
             return Err(CircuitBuilderError::DisconnectedComponent);
         }
 
+        let mut reindexed_inputs = Vec::new();
         for &input in component.inputs() {
-            // Verify that the input is connected to an existing component output or is a circuit input.
             if !self.component_outputs.contains(&input) && !self.circuit_inputs.contains(&input) {
                 return Err(CircuitBuilderError::TopologicalOrderError(input));
             }
 
             self.component_inputs.insert(input);
-            self.index_map.entry(input).or_insert_with(|| {
+            let reindexed_input = self.index_map.entry(input).or_insert_with(|| {
                 let index = self.next_index;
                 self.next_index += 1;
                 index
             });
+            reindexed_inputs.push(*reindexed_input);
         }
 
+        let mut reindexed_outputs = Vec::new();
         for &output in component.outputs() {
             if self.circuit_inputs.contains(&output) {
                 return Err(CircuitBuilderError::OutputIsACircuitInput(output));
@@ -125,14 +127,18 @@ where
             }
 
             self.component_outputs.insert(output);
-            self.index_map.entry(output).or_insert_with(|| {
+            let reindexed_output = self.index_map.entry(output).or_insert_with(|| {
                 let index = self.next_index;
                 self.next_index += 1;
                 index
             });
+            reindexed_outputs.push(*reindexed_output);
         }
 
+        component.set_inputs(reindexed_inputs);
+        component.set_outputs(reindexed_outputs);
         self.components.push(component);
+
         Ok(self)
     }
 
@@ -193,6 +199,16 @@ where
     /// Returns the indices of the output nodes for the entire circuit.
     fn outputs(&self) -> &[usize] {
         &self.outputs
+    }
+
+    /// Sets the input nodes for the entire circuit.
+    fn set_inputs(&mut self, inputs: Vec<usize>) {
+        self.inputs = inputs;
+    }
+
+    /// Sets the output nodes for the entire circuit.
+    fn set_outputs(&mut self, outputs: Vec<usize>) {
+        self.outputs = outputs;
     }
 }
 
@@ -387,13 +403,21 @@ mod tests {
         outputs: Vec<usize>,
     }
 
-    impl crate::model::Component for BinaryGate {
+    impl Component for BinaryGate {
         fn inputs(&self) -> &[usize] {
             &self.inputs
         }
 
         fn outputs(&self) -> &[usize] {
             &self.outputs
+        }
+
+        fn set_inputs(&mut self, inputs: Vec<usize>) {
+            self.inputs = inputs;
+        }
+
+        fn set_outputs(&mut self, outputs: Vec<usize>) {
+            self.outputs = outputs;
         }
     }
 
@@ -510,6 +534,24 @@ mod tests {
         assert_eq!(circuit.memory_map.get(&400), Some(&2));
         assert_eq!(circuit.memory_map.get(&335), Some(&3));
         assert_eq!(circuit.memory_map.get(&510), Some(&4));
+
+        // Test gates inputs and outputs reindexing
+        let first_gate = circuit.components.get(0).unwrap();
+        assert_eq!(first_gate.inputs(), &[0, 1]);
+        assert_eq!(first_gate.outputs(), &[2]);
+
+        let second_gate = circuit.components.get(1).unwrap();
+        assert_eq!(second_gate.inputs(), &[2, 3]);
+        assert_eq!(second_gate.outputs(), &[4]);
+
+        // Execute
+        let mut executor = GenericCircuitExecutor::new(circuit);
+
+        let input_values = HashMap::from([(118, true), (220, false), (335, true)]);
+        let output = executor.run(&input_values).unwrap();
+
+        assert_eq!(output.get(&510), Some(&true));
+        assert_eq!(output.len(), 1);
     }
 
     #[test]
