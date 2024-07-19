@@ -16,7 +16,7 @@ pub struct CircuitMemory<T> {
 }
 
 impl<T> CircuitMemory<T> {
-    fn new(size: usize) -> Self {
+    pub fn new(size: usize) -> Self {
         let mut wires = Vec::with_capacity(size);
 
         for _ in 0..size {
